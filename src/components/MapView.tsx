@@ -130,7 +130,7 @@ export function MapView() {
         <MapController center={currentPos} disableAutoPan={calibrationMode} />
         <CalibrationEvents enabled={calibrationMode} />
         <ImageOverlay
-          url="/middle-earth-map.jpg"
+          url="/middle-earth-map.jpg?v=2"
           bounds={MAP_BOUNDS}
         />
         
