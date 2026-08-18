@@ -55,21 +55,50 @@ app.get('/user', async (c) => {
 
 // Get leaderboard
 app.get('/leaderboard', async (c) => {
-  const { results } = await c.env.DB.prepare(`
-    SELECT u.id, u.name, u.avatar, u.step_conversion, SUM(l.steps) as total_steps
-    FROM users u
-    LEFT JOIN logs l ON u.id = l.user_id
-    GROUP BY u.id
-  `).all();
-  
-  const leaderboard = results.map((r: any) => ({
-    id: r.id,
-    name: r.name || 'Traveler',
-    avatar: r.avatar,
-    miles: (r.total_steps || 0) / (r.step_conversion || 2000)
-  }));
-  
-  return c.json(leaderboard);
+  try {
+    const { results } = await c.env.DB.prepare(`
+      SELECT u.id, u.name, u.avatar, u.step_conversion, SUM(l.steps) as total_steps
+      FROM users u
+      LEFT JOIN logs l ON u.id = l.user_id
+      GROUP BY u.id
+    `).all();
+    
+    const leaderboard = results.map((r: any) => ({
+      id: r.id,
+      name: r.name || 'Traveler',
+      avatar: r.avatar,
+      miles: (r.total_steps || 0) / (r.step_conversion || 2000)
+    }));
+    
+    return c.json(leaderboard);
+  } catch (e) {
+    // If name/avatar columns are missing, fallback to safe query and run migration in background
+    console.error('Leaderboard query failed (likely missing columns), using fallback:', e);
+    
+    // Attempt to migrate
+    try {
+      await c.env.DB.prepare('ALTER TABLE users ADD COLUMN name TEXT').run();
+      await c.env.DB.prepare('ALTER TABLE users ADD COLUMN avatar TEXT').run();
+    } catch (migErr) {
+      console.error('Migration also failed:', migErr);
+    }
+
+    const { results } = await c.env.DB.prepare(`
+      SELECT u.id, u.step_conversion, SUM(l.steps) as total_steps
+      FROM users u
+      LEFT JOIN logs l ON u.id = l.user_id
+      GROUP BY u.id
+    `).all();
+    
+    const leaderboard = results.map((r: any) => ({
+      id: r.id,
+      name: 'Traveler',
+      avatar: '',
+      miles: (r.total_steps || 0) / (r.step_conversion || 2000)
+    }));
+    
+    return c.json(leaderboard);
+  }
 });
 
 // Update user conversion rate
