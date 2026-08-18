@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useJourney } from '../hooks/useJourney';
@@ -21,6 +21,38 @@ const customIcon = new L.Icon({
   popupAnchor: [1, -34],
   shadowSize: [41, 41]
 });
+
+// Custom TileLayer to handle LotrProject's inverted Y axis
+function LotrTileLayer() {
+  const map = useMap();
+  React.useEffect(() => {
+    const layer = L.tileLayer('/tiles/{z}/{x}/{y}.jpg', {
+      noWrap: true,
+      minZoom: 1,
+      maxZoom: 6,
+      maxNativeZoom: 4
+    });
+    
+    // Override getTileUrl to fix the Y axis because L.CRS.Simple is infinite and doesn't support tms: true
+    layer.getTileUrl = function(coords) {
+      let lotrY = coords.y;
+      
+      // LotrProject max Y tiles for each zoom level:
+      if (coords.z === 1) lotrY = 1 - coords.y;
+      else if (coords.z === 2) lotrY = 2 - coords.y;
+      else if (coords.z === 3) lotrY = 5 - coords.y;
+      else if (coords.z === 4) lotrY = 11 - coords.y; 
+      
+      return `/tiles/${coords.z}/${coords.x}/${lotrY}.jpg`;
+    };
+    
+    layer.addTo(map);
+    return () => {
+      map.removeLayer(layer);
+    };
+  }, [map]);
+  return null;
+}
 
 
 
@@ -126,14 +158,7 @@ export function MapView() {
       >
         <MapController center={currentPos} disableAutoPan={calibrationMode} />
         <CalibrationEvents enabled={calibrationMode} />
-        <TileLayer
-          url="/tiles/{z}/{x}/{y}.jpg"
-          noWrap={true}
-          tms={true}
-          minZoom={1}
-          maxZoom={6}
-          maxNativeZoom={4}
-        />
+        <LotrTileLayer />
         
         {/* Draw the full path (faded background line) */}
         <Polyline 
