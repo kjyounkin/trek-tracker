@@ -1,6 +1,7 @@
+import React from 'react';
 import { useJourney } from '../hooks/useJourney';
 import { MILESTONES } from '../data/milestones';
-import { CheckCircle2, Circle, MapPin } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 
 export function Timeline() {
   const { totalMiles } = useJourney();
