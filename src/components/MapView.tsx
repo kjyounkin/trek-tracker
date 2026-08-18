@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { MapContainer, ImageOverlay, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useJourney } from '../hooks/useJourney';
@@ -129,9 +129,13 @@ export function MapView() {
       >
         <MapController center={currentPos} disableAutoPan={calibrationMode} />
         <CalibrationEvents enabled={calibrationMode} />
-        <ImageOverlay
-          url="/middle-earth-map.jpg?v=2"
+        <TileLayer
+          url="/tiles/{z}/{x}/{y}.jpg"
+          noWrap={true}
           bounds={MAP_BOUNDS}
+          maxNativeZoom={6}
+          minZoom={2}
+          maxZoom={7}
         />
         
         {/* Draw the full path (faded background line) */}
