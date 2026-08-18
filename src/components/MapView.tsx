@@ -22,8 +22,7 @@ const customIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-// Map bounds based on the 10000x5455 aspect ratio of the 10K Reddit map
-const MAP_BOUNDS: L.LatLngBoundsExpression = [[0, 0], [100, 183.32]];
+
 
 // Component to handle auto-panning to current location
 function MapController({ center, disableAutoPan }: { center: [number, number], disableAutoPan: boolean }) {
