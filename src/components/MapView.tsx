@@ -120,22 +120,20 @@ export function MapView() {
       </div>
 
       <MapContainer 
-        crs={L.CRS.Simple}
-        bounds={MAP_BOUNDS} 
+        center={[-68.125, 55.625]} 
+        zoom={4} 
         style={{ height: '100%', width: '100%' }}
-        minZoom={-1}
-        maxZoom={4}
-        zoom={1}
+        crs={L.CRS.Simple}
       >
         <MapController center={currentPos} disableAutoPan={calibrationMode} />
         <CalibrationEvents enabled={calibrationMode} />
         <TileLayer
           url="/tiles/{z}/{x}/{y}.jpg"
           noWrap={true}
-          bounds={MAP_BOUNDS}
-          maxNativeZoom={6}
-          minZoom={2}
-          maxZoom={7}
+          tms={true}
+          minZoom={1}
+          maxZoom={6}
+          maxNativeZoom={4}
         />
         
         {/* Draw the full path (faded background line) */}
