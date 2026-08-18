@@ -8,7 +8,7 @@ export interface StepEntry {
 }
 
 export function useJourney() {
-  const { isLoaded, userId, getToken } = useAuth();
+  const { isLoaded, userId } = useAuth();
   const [entries, setEntries] = useState<StepEntry[]>([]);
   const [stepConversion, setStepConversion] = useState(2000);
   const [isLoading, setIsLoading] = useState(true);
