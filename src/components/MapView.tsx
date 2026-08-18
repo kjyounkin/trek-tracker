@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { MapContainer, ImageOverlay, Polyline, Marker, Popup, useMap } from 'react-leaflet';
+import React, { useMemo, useState } from 'react';
+import { MapContainer, ImageOverlay, Polyline, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useJourney } from '../hooks/useJourney';
@@ -26,16 +26,39 @@ const customIcon = new L.Icon({
 const MAP_BOUNDS: L.LatLngBoundsExpression = [[0, 0], [100, 133.34]];
 
 // Component to handle auto-panning to current location
-function MapController({ center }: { center: [number, number] }) {
+function MapController({ center, disableAutoPan }: { center: [number, number], disableAutoPan: boolean }) {
   const map = useMap();
   React.useEffect(() => {
-    map.setView(center, map.getZoom(), { animate: true });
-  }, [center, map]);
+    if (!disableAutoPan) {
+      map.setView(center, map.getZoom(), { animate: true });
+    }
+  }, [center, map, disableAutoPan]);
+  return null;
+}
+
+// Component to handle calibration clicks
+function CalibrationEvents({ enabled }: { enabled: boolean }) {
+  useMapEvents({
+    click(e) {
+      if (enabled) {
+        const lat = parseFloat(e.latlng.lat.toFixed(2));
+        const lng = parseFloat(e.latlng.lng.toFixed(2));
+        const coords = `[${lat}, ${lng}]`;
+        navigator.clipboard.writeText(coords).then(() => {
+          alert(`Copied to clipboard: ${coords}`);
+        }).catch(() => {
+          alert(`Coordinates: ${coords}`);
+        });
+        console.log(`latLng: [${lat}, ${lng}]`);
+      }
+    },
+  });
   return null;
 }
 
 export function MapView() {
   const { totalMiles } = useJourney();
+  const [calibrationMode, setCalibrationMode] = useState(false);
 
   // Calculate current position exactly along the waypoints
   const currentPos = useMemo(() => {
@@ -76,16 +99,36 @@ export function MapView() {
   const allPathCoordinates = WAYPOINTS.map(w => w.latLng);
 
   return (
-    <div className="w-full h-[calc(100vh-120px)] bg-slate-100 rounded-xl overflow-hidden border border-slate-200 shadow-sm relative">
+    <div className="relative w-full h-[calc(100vh-120px)] bg-slate-100 rounded-xl overflow-hidden border border-slate-200 shadow-sm">
+      
+      {/* Calibration Mode Toggle */}
+      <div className="absolute top-4 right-4 z-[1000] bg-white p-2 rounded-lg shadow-md border border-slate-200">
+        <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-slate-700">
+          <input 
+            type="checkbox" 
+            checked={calibrationMode} 
+            onChange={(e) => setCalibrationMode(e.target.checked)}
+            className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+          />
+          Calibration Mode
+        </label>
+        {calibrationMode && (
+          <p className="text-xs text-slate-500 mt-1 max-w-[150px]">
+            Click anywhere on the map to copy its coordinates.
+          </p>
+        )}
+      </div>
+
       <MapContainer 
         crs={L.CRS.Simple}
         bounds={MAP_BOUNDS} 
         style={{ height: '100%', width: '100%' }}
         minZoom={-1}
-        maxZoom={3}
-        zoom={0}
+        maxZoom={4}
+        zoom={1}
       >
-        <MapController center={currentPos} />
+        <MapController center={currentPos} disableAutoPan={calibrationMode} />
+        <CalibrationEvents enabled={calibrationMode} />
         <ImageOverlay
           url="/middle-earth-map.svg"
           bounds={MAP_BOUNDS}
@@ -116,12 +159,12 @@ export function MapView() {
             })}
           >
             <Popup>
-              <div className="font-sans">
+              <div className="font-sans min-w-[200px]">
                 <strong className="text-sm">{milestone.title}</strong><br />
-                <span className="text-xs text-slate-500 uppercase tracking-wider">{milestone.region}</span><br />
+                <span className="text-xs text-emerald-700 font-semibold uppercase tracking-wider">{milestone.region}</span><br />
                 <span className="text-xs text-slate-400 block mt-1 pb-1 border-b border-slate-100">Mile: {milestone.mile}</span>
-                <p className="text-xs mt-2">{milestone.description}</p>
-                <em className="text-[10px] text-slate-400 block mt-2">{milestone.chapter}</em>
+                <p className="text-sm mt-2 leading-relaxed text-slate-600">{milestone.description}</p>
+                <em className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block mt-2">{milestone.book} &bull; {milestone.chapter.split(': ')[0]}</em>
               </div>
             </Popup>
           </Marker>
