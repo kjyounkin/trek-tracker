@@ -22,8 +22,8 @@ const customIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-// Map bounds based on the 13334x10000 aspect ratio of the new SVG map
-const MAP_BOUNDS: L.LatLngBoundsExpression = [[0, 0], [100, 133.34]];
+// Map bounds based on the 10000x5455 aspect ratio of the 10K Reddit map
+const MAP_BOUNDS: L.LatLngBoundsExpression = [[0, 0], [100, 183.32]];
 
 // Component to handle auto-panning to current location
 function MapController({ center, disableAutoPan }: { center: [number, number], disableAutoPan: boolean }) {
@@ -130,7 +130,7 @@ export function MapView() {
         <MapController center={currentPos} disableAutoPan={calibrationMode} />
         <CalibrationEvents enabled={calibrationMode} />
         <ImageOverlay
-          url="/middle-earth-map.png"
+          url="/middle-earth-map.jpg"
           bounds={MAP_BOUNDS}
         />
         
