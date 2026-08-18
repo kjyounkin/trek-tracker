@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useJourney } from '../hooks/useJourney';
-import { MILESTONES, Milestone } from '../data/milestones';
+import { MILESTONES, type Milestone } from '../data/milestones';
 import { MapPin, UserCircle2 } from 'lucide-react';
 import { useUser } from '@clerk/clerk-react';
 
