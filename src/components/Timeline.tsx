@@ -37,6 +37,11 @@ export function Timeline() {
                       Mile {milestone.mile}
                     </span>
                   </div>
+                  <div className="mb-2 text-xs font-semibold tracking-wide uppercase text-slate-400 flex items-center gap-2">
+                    <span>{milestone.region}</span>
+                    <span>&bull;</span>
+                    <span className="truncate" title={milestone.chapter}>{milestone.chapter}</span>
+                  </div>
                   <p className="text-sm text-slate-600">{milestone.description}</p>
                 </div>
               </div>
