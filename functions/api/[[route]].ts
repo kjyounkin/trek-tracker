@@ -22,14 +22,54 @@ app.use('*', async (c, next) => {
 // Get user profile
 app.get('/user', async (c) => {
   const userId = c.get('userId');
+  const name = c.req.header('x-user-name') || 'Traveler';
+  const avatar = c.req.header('x-user-avatar') || '';
+
   let user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
   
   if (!user) {
     // Create default profile
-    await c.env.DB.prepare('INSERT INTO users (id, step_conversion) VALUES (?, 2000)').bind(userId).run();
-    user = { id: userId, step_conversion: 2000 };
+    try {
+      await c.env.DB.prepare('INSERT INTO users (id, step_conversion, name, avatar) VALUES (?, 2000, ?, ?)').bind(userId, name, avatar).run();
+    } catch (e) {
+      // Auto-migrate if columns don't exist
+      await c.env.DB.prepare('ALTER TABLE users ADD COLUMN name TEXT').run();
+      await c.env.DB.prepare('ALTER TABLE users ADD COLUMN avatar TEXT').run();
+      await c.env.DB.prepare('INSERT INTO users (id, step_conversion, name, avatar) VALUES (?, 2000, ?, ?)').bind(userId, name, avatar).run();
+    }
+    user = { id: userId, step_conversion: 2000, name, avatar };
+  } else {
+    // Update name and avatar if they changed
+    if (user.name !== name || user.avatar !== avatar) {
+      try {
+        await c.env.DB.prepare('UPDATE users SET name = ?, avatar = ? WHERE id = ?').bind(name, avatar, userId).run();
+      } catch (e) {
+        await c.env.DB.prepare('ALTER TABLE users ADD COLUMN name TEXT').run();
+        await c.env.DB.prepare('ALTER TABLE users ADD COLUMN avatar TEXT').run();
+        await c.env.DB.prepare('UPDATE users SET name = ?, avatar = ? WHERE id = ?').bind(name, avatar, userId).run();
+      }
+    }
   }
   return c.json(user);
+});
+
+// Get leaderboard
+app.get('/leaderboard', async (c) => {
+  const { results } = await c.env.DB.prepare(`
+    SELECT u.id, u.name, u.avatar, u.step_conversion, SUM(l.steps) as total_steps
+    FROM users u
+    LEFT JOIN logs l ON u.id = l.user_id
+    GROUP BY u.id
+  `).all();
+  
+  const leaderboard = results.map((r: any) => ({
+    id: r.id,
+    name: r.name || 'Traveler',
+    avatar: r.avatar,
+    miles: (r.total_steps || 0) / (r.step_conversion || 2000)
+  }));
+  
+  return c.json(leaderboard);
 });
 
 // Update user conversion rate

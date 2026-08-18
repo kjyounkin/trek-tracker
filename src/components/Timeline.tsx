@@ -1,23 +1,16 @@
 import React, { useMemo } from 'react';
-import { useJourney } from '../hooks/useJourney';
+import { useJourney, useLeaderboard } from '../hooks/useJourney';
 import { MILESTONES, type Milestone } from '../data/milestones';
 import { MapPin, UserCircle2 } from 'lucide-react';
 import { useUser } from '@clerk/clerk-react';
 
 interface UserProgress {
+  id: string;
   name: string;
   miles: number;
   avatar?: string;
   isMe?: boolean;
 }
-
-const MOCK_USERS: UserProgress[] = [
-  { name: 'Sarah M.', miles: 42, avatar: 'https://i.pravatar.cc/150?u=sarah' },
-  { name: 'Alex K.', miles: 145, avatar: 'https://i.pravatar.cc/150?u=alex' },
-  { name: 'Samwise', miles: 890, avatar: 'https://i.pravatar.cc/150?u=sam' },
-  { name: 'Elena R.', miles: 1105, avatar: 'https://i.pravatar.cc/150?u=elena' },
-  { name: 'David T.', miles: 1300, avatar: 'https://i.pravatar.cc/150?u=david' }
-];
 
 type TimelineItem = 
   | { type: 'milestone', mile: number, data: Milestone, originalIndex: number }
@@ -25,25 +18,45 @@ type TimelineItem =
 
 export function Timeline() {
   const { totalMiles } = useJourney();
+  const { leaderboard } = useLeaderboard();
   const { user } = useUser();
 
   const timelineItems = useMemo(() => {
     const items: TimelineItem[] = MILESTONES.map((m, i) => ({ type: 'milestone', mile: m.mile, data: m, originalIndex: i }));
     
-    // Add mock users
-    MOCK_USERS.forEach(u => items.push({ type: 'user', mile: u.miles, data: u }));
-    
-    // Add current user
-    items.push({ 
-      type: 'user', 
-      mile: totalMiles, 
-      data: { 
-        name: user?.firstName || 'You', 
-        miles: totalMiles, 
-        isMe: true,
-        avatar: user?.imageUrl
-      }
+    // Add real users from leaderboard
+    let currentUserAdded = false;
+    leaderboard.forEach(u => {
+      const isMe = u.id === user?.id;
+      if (isMe) currentUserAdded = true;
+      const displayMiles = isMe ? totalMiles : u.miles;
+      
+      items.push({ 
+        type: 'user', 
+        mile: displayMiles, 
+        data: {
+          id: u.id,
+          name: isMe ? (user?.firstName || 'You') : u.name,
+          miles: displayMiles,
+          avatar: isMe ? user?.imageUrl : u.avatar,
+          isMe: isMe
+        } 
+      });
     });
+
+    if (!currentUserAdded && user?.id) {
+      items.push({ 
+        type: 'user', 
+        mile: totalMiles, 
+        data: { 
+          id: user.id,
+          name: user.firstName || 'You', 
+          miles: totalMiles, 
+          isMe: true,
+          avatar: user.imageUrl
+        }
+      });
+    }
 
     // Sort by mile. If miles are equal, put milestones first so users appear slightly after the milestone dot
     items.sort((a, b) => {
