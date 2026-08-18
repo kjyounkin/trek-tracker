@@ -4,7 +4,7 @@ import { TOTAL_MILES } from '../data/milestones';
 import { Footprints, Route } from 'lucide-react';
 
 export function Dashboard() {
-  const { entries, addEntry, deleteEntry, totalSteps, totalMiles, STEPS_PER_MILE } = useJourney();
+  const { entries, addEntry, deleteEntry, totalSteps, totalMiles, stepConversion } = useJourney();
   const [stepsInput, setStepsInput] = useState('');
   const [dateInput, setDateInput] = useState(new Date().toISOString().split('T')[0]);
 
@@ -79,7 +79,7 @@ export function Dashboard() {
                 onChange={(e) => setStepsInput(e.target.value)}
                 className="w-full border border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
               />
-              <p className="text-xs text-slate-500 mt-1">Converts at {STEPS_PER_MILE} steps per mile</p>
+              <p className="text-xs text-slate-500 mt-1">Converts at {stepConversion} steps per mile</p>
             </div>
             <button 
               type="submit"
@@ -100,7 +100,7 @@ export function Dashboard() {
                 <div key={entry.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
                   <div>
                     <p className="font-medium text-slate-800">{new Date(entry.date).toLocaleDateString()}</p>
-                    <p className="text-sm text-slate-500">{(entry.steps / STEPS_PER_MILE).toFixed(2)} miles</p>
+                    <p className="text-sm text-slate-500">{(entry.steps / stepConversion).toFixed(2)} miles</p>
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="font-bold text-slate-700">{entry.steps.toLocaleString()}</span>

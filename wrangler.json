@@ -1,0 +1,11 @@
+{
+  "name": "trek-tracker",
+  "pages_build_output_dir": "dist",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "trek-tracker-db",
+      "database_id": "YOUR_D1_DATABASE_ID"
+    }
+  ]
+}

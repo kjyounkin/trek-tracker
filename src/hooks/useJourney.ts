@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 
 export interface StepEntry {
   id: string;
@@ -6,46 +7,100 @@ export interface StepEntry {
   steps: number;
 }
 
-const STEPS_PER_MILE = 2000;
-const STORAGE_KEY = 'trek_tracker_entries';
-
 export function useJourney() {
+  const { isLoaded, userId, getToken } = useAuth();
   const [entries, setEntries] = useState<StepEntry[]>([]);
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [stepConversion, setStepConversion] = useState(2000);
+  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        setEntries(JSON.parse(saved));
-      } catch (e) {
-        console.error('Failed to parse entries', e);
-      }
+  const fetchApi = useCallback(async (endpoint: string, options: RequestInit = {}) => {
+    if (!userId) return null;
+    
+    const headers = {
+      'Content-Type': 'application/json',
+      'x-user-id': userId, // In production, pass the actual JWT token as an Authorization header
+      ...options.headers,
+    };
+
+    const res = await fetch(`/api${endpoint}`, { ...options, headers });
+    if (!res.ok) throw new Error('API Error');
+    return res.json();
+  }, [userId]);
+
+  const loadData = useCallback(async () => {
+    if (!userId) {
+      setEntries([]);
+      setIsLoading(false);
+      return;
     }
-    setIsLoaded(true);
-  }, []);
+
+    try {
+      setIsLoading(true);
+      const [userData, logsData] = await Promise.all([
+        fetchApi('/user'),
+        fetchApi('/logs')
+      ]);
+      if (userData) setStepConversion(userData.step_conversion);
+      if (logsData) setEntries(logsData);
+    } catch (e) {
+      console.error('Failed to load data', e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId, fetchApi]);
 
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+      loadData();
     }
-  }, [entries, isLoaded]);
+  }, [isLoaded, loadData]);
 
-  const addEntry = (date: string, steps: number) => {
+  const addEntry = async (date: string, steps: number) => {
     const newEntry: StepEntry = {
       id: crypto.randomUUID(),
       date,
       steps
     };
-    setEntries([...entries, newEntry]);
+    
+    // Optimistic update
+    setEntries(prev => [newEntry, ...prev]);
+    
+    try {
+      await fetchApi('/logs', {
+        method: 'POST',
+        body: JSON.stringify(newEntry)
+      });
+    } catch (e) {
+      console.error('Failed to add entry', e);
+      // Revert on failure (simplified)
+      loadData();
+    }
   };
 
-  const deleteEntry = (id: string) => {
-    setEntries(entries.filter(e => e.id !== id));
+  const deleteEntry = async (id: string) => {
+    setEntries(prev => prev.filter(e => e.id !== id));
+    try {
+      await fetchApi(`/logs/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      console.error('Failed to delete entry', e);
+      loadData();
+    }
+  };
+
+  const updateConversion = async (newConversion: number) => {
+    setStepConversion(newConversion);
+    try {
+      await fetchApi('/user/conversion', {
+        method: 'POST',
+        body: JSON.stringify({ step_conversion: newConversion })
+      });
+    } catch (e) {
+      console.error('Failed to update conversion', e);
+    }
   };
 
   const totalSteps = entries.reduce((sum, entry) => sum + entry.steps, 0);
-  const totalMiles = totalSteps / STEPS_PER_MILE;
+  const totalMiles = stepConversion > 0 ? totalSteps / stepConversion : 0;
 
   return {
     entries,
@@ -53,6 +108,8 @@ export function useJourney() {
     deleteEntry,
     totalSteps,
     totalMiles,
-    STEPS_PER_MILE
+    stepConversion,
+    updateConversion,
+    isLoading
   };
 }
