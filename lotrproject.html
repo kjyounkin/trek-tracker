@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta property="fb:admins" content="676564309"/>
+        <meta property="fb:app_id" content="121125547969123"/>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Interactive Map of Middle-Earth - LotrProject </title>
+<meta property="og:url" content="http://lotrproject.com/map/"/>  
+<meta property="og:title" content="Interactive Map of Middle-Earth - LotrProject" />  
+<meta property="og:description" content="High resolution interactive map of J.R.R. Tolkien's Middle-earth with timeline of events, character movements and locations." />
+<meta name="keywords" content="middle-earth, map, geography, lotr, the hobbit, lord of the rings, tolkien, arda">
+<meta property="og:type" content="article" />  
+<meta property="og:image" content="http://lotrproject.com/map/meincludes/images/memapog.png" />  
+<link href='http://fonts.googleapis.com/css?family=Open+Sans:400,300,600' rel='stylesheet' type='text/css'>
+<link href='http://fonts.googleapis.com/css?family=Playfair+Display:700italic' rel='stylesheet' type='text/css'>
+<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8.23/jquery-ui.min.js"></script>
+<link rel="stylesheet" href="ol/style.css" type="text/css">
+<link rel="stylesheet" href="meincludes/style.css?version=4" type="text/css">
+<script language="javascript" type="text/javascript" src="http://lotrproject.com/js/k.js"></script>
+<link rel="stylesheet" type="text/css" media="all" href="http://lotrproject.com/parts/global.css" />
+<script type="text/javascript">
+var map, pois, points, lineLayer, lonlat, streets, fpControl;
+var pathcolors = ["nocolor", "blue", "blue", "red", "green", "purple", "#F85C39", "orange", "#39C2F8", "#F8C539"];
+var mapMinZoom = 0;
+var mapMaxZoom = 4;
+var kkeys = [];
+var charpaths = (function() {
+    var amap = [];
+    return {
+        set: function ( name, value ) {
+            amap.push(name)
+        },
+        get: function ( name ) {
+            return amap;
+        },
+        rem: function ( name ) {
+            var index = amap.indexOf(name);
+            amap.splice(index,1);
+        }
+    };
+})();
+var shownplaces = (function() {
+    var amap = [];
+    return {
+        set: function ( name, value ) {
+            amap.push(name)
+        },
+        get: function ( name ) {
+            return amap;
+        },
+        rem: function ( name ) {
+            var index = amap.indexOf(name);
+            amap.splice(index,1);
+        }
+    };
+})();
+var shownevents = (function() {
+    var amap = [];
+    return {
+        set: function ( name, value ) {
+            amap.push(name)
+        },
+        get: function ( name ) {
+            return amap;
+        },
+        rem: function ( name ) {
+            var index = amap.indexOf(name);
+            amap.splice(index,1);
+        }
+    };
+})();
+function overlay_getTileURL(bounds) {
+    var res = this.map.getResolution();
+    var x = Math.round((bounds.left - this.maxExtent.left) / (res * this.tileSize.w));
+    var y = Math.round((bounds.bottom - this.maxExtent.bottom) / (res * this.tileSize.h));
+    var z = this.map.getZoom();
+    if (x >= 0 && y >= 0) {
+        return this.url + "meincludes/tiles/" + z + "/" + x + "/" + y + "." + this.type;				
+    } else {
+        return "http://www.maptiler.org/img/none.png";
+    }
+}
+function locationinfo(lonlat, value, info, tg, lid, p) {
+    popup = new OpenLayers.Popup.FramedCloud("searchpopup",
+      lonlat,
+      new OpenLayers.Size(300,100),
+      "<div class='popuptitle'>" + value + "</div><div class='popupinfo'>" + info + "</div><div class='popuptglink'><a href='"+ tg + "'>Read more on Tolkien Gateway</a></div>",
+      null, true, onPopupClose);
+      popup.maxSize = new OpenLayers.Size(400, 3000);
+      popup.imageSrc = "http://lotrproject.com/map/img/cloud-popup-relative.png";
+      popup.closeDiv.style.background="url('http://lotrproject.com/map/img/close.gif') no-repeat top right";
+      if(p >= 1) {
+        var ds = new drawshape();
+        ds.show(lid, p);
+      }
+      map.addPopup(popup, true);
+}
+function drawshape(lid, p) {
+  return {
+    show: function (lid, p) {
+     var rid = map.getLayersByName("Shape");
+     shapelayer = rid[0];
+     shapelayer.removeAllFeatures();
+     var urlreq = "meincludes/shape.php?p="+p+"&lid="+lid+"";
+     $.getJSON(urlreq, function( data ) {
+          $(data.features).each(function (index, key) {
+               geojsonfile = new OpenLayers.Format.GeoJSON;
+               shapelayer.addFeatures([geojsonfile.parseFeature(data.features[index])]);
+               shapelayer.features[index].style.fillColor = data.features[index].properties.pcolor;
+               shapelayer.features[index].style.strokeColor = data.features[index].properties.pcolor;
+               shapelayer.redraw();
+          });
+     });
+    },
+    remove: function () {
+     var rid = map.getLayersByName("Shape");
+     shapelayer = rid[0];
+     shapelayer.removeAllFeatures();
+    }
+  };
+}
+function renderpaths() {
+     var rid = map.getLayersByName("Paths");
+     path = rid[0];
+     path.removeAllFeatures();
+     var urlreq = "meincludes/path.php?first=pars";
+     for (var i=0;i<charpaths.get().length;i++)
+     { 
+     urlreq = urlreq + "&pars[]=" + charpaths.get()[i];
+     }
+     $.getJSON(urlreq, function( data ) {
+          $(data.features).each(function (index, key) {//jquery
+               geojsonfile = new OpenLayers.Format.GeoJSON;
+               path.addFeatures([geojsonfile.parseFeature(data.features[index])]);
+               path.features[index].style.strokeColor = data.features[index].properties.pcolor;
+               path.redraw();
+          });
+     });
+        path.events.on({
+                    'featureover': function(e) {  
+            var feature = e.feature;
+            var popup = new OpenLayers.Popup.FramedCloud("pathpopup",feature.geometry.getBounds().getCenterLonLat(),
+                null,
+                e.feature.data.pathname,
+                null,
+                true,
+                null
+            );
+            popup.autoSize = true;
+            popup.maxSize = new OpenLayers.Size(200,200);
+            popup.fixedRelativePosition = true;
+            popup.imageSrc = "";
+            feature.popup = popup;
+            map.addPopup(popup, false);
+$('#pathpopup_contentDiv').height(20);
+                    },
+        'featureout':function(evt){
+            var feature = evt.feature;
+            map.removePopup(feature.popup);
+            $('#pathpopup').remove();
+            feature.popup.destroy();
+            feature.popup = null;
+        }
+                });
+     map.addLayer(path);
+}
+function drawPath(cid) {
+  var path;
+  return {
+    show: function (cid) {
+     charpaths.set(cid, 'showing');
+     renderpaths();
+    },
+    remove: function (cid) {
+     charpaths.rem(cid);
+     renderpaths();
+    }
+  };
+}
+function onPopupClose(evt) {
+     var ds = new drawshape();
+     ds.remove();
+     $('#searchpopup').remove();
+     var feature = this.feature;
+     if (feature.layer) { 
+         selectControl.unselect(feature);
+     } else { 
+          this.destroy();
+     }
+}
+function createPopup(map, lonLat, html, onClose) {
+      var popup = new OpenLayers.Popup.FramedCloud(
+                  "eventPopup",
+                  lonLat,
+                  new OpenLayers.Size(300,100), html,
+                  null, true, onClose);
+      popup.maxSize = new OpenLayers.Size(400, 400);
+      popup.imageSrc = "http://lotrproject.com/map/img/cloud-popup-relative.png";
+      popup.closeDiv.style.background="url('http://lotrproject.com/map/img/close.gif') no-repeat top right";
+      map.addPopup(popup, true);
+      if($('#map').width() < 400) {
+      $('#eventPopup_contentDiv').css('width', 'auto');
+      } else {
+      $('#eventPopup_contentDiv').width(368);
+      }
+        return {
+            div: popup.id,
+            destroy: function() {popup.destroy()}
+        };
+    }
+function onFeatureSelect(evt) {
+      feature = evt.feature;
+      popup = new OpenLayers.Popup.FramedCloud("featurePopup",
+                  feature.geometry.getBounds().getCenterLonLat(),
+                  new OpenLayers.Size(300,100),
+                  "<div class='popuptitle'>"+feature.attributes.pname + "</div>" + feature.attributes.pdesc + "<div class='popuptg'><a href='" + feature.attributes.ptg + "'>Read more on Tolkien Gateway</a></div>",
+                  null, true, onPopupClose);
+      popup.maxSize = new OpenLayers.Size(400, 3000);
+      popup.imageSrc = "http://lotrproject.com/map/img/cloud-popup-relative.png";
+      popup.closeDiv.style.background="url('http://lotrproject.com/map/img/close.gif') no-repeat top right";
+      popup.feature = feature;
+      feature.popup = popup;
+      map.addPopup(popup, true);
+      if(feature.attributes.haspolygon >= 1) {
+        var ds = new drawshape();
+        ds.show(feature.attributes.lid, feature.attributes.haspolygon);
+      }
+}
+function onFeatureUnselect(evt) {
+                feature = evt.feature;
+                if (feature.popup) {
+                    popup.feature = null;
+                    map.removePopup(feature.popup);
+                    feature.popup.destroy();
+                    feature.popup = null;
+                    var ds = new drawshape();
+                    ds.remove();
+                }
+}
+var tevents;
+function viewEvents(books) {
+  return {
+    show: function (parameters) {
+     var rid = map.getLayersByName("Events");
+     elayer = rid[0];
+     elayer.removeAllFeatures();
+     var urlreq = "meincludes/events.php?map=middleearth&pars[]=pars";
+     for (var i=0;i<parameters.length;i++)
+     { 
+     urlreq = urlreq + "&pars[]=" + parameters[i];
+     }
+     var features = [];
+     $.getJSON(urlreq, function( data ) {
+          $(data.features).each(function (index, key) {
+               geojsonfile = new OpenLayers.Format.GeoJSON;
+               features.push(geojsonfile.parseFeature(data.features[index]));
+          });
+     elayer.addFeatures(features);
+     elayer.redraw();
+     });
+    },
+    remove: function (parameters) {
+         var rdi = map.getLayersByName("Events")[0];
+         rdi.removeAllFeatures();
+    }
+  };
+}
+function viewPlaces(books) {
+  return {
+    show: function (parameters) {
+     var urlreq = "meincludes/places.php?map=middleearth&pars[]=pars";
+     for (var i=0;i<parameters.length;i++)
+     { 
+     urlreq = urlreq + "&pars[]=" + parameters[i];
+     }
+     var rdi = map.getLayersByName("Places")[0];
+     rdi.removeAllFeatures();
+     $.getJSON(urlreq, function( data ) {
+          $(data.features).each(function (index, key) {
+               geojsonfile = new OpenLayers.Format.GeoJSON;
+               rdi.addFeatures([geojsonfile.parseFeature(data.features[index])]);
+rdi.features[index].style.fillColor = data.features[index].properties.pcolor;
+               rdi.redraw();
+          });
+     });
+    },
+    remove: function (parameters) {
+         var rdi = map.getLayersByName("Places")[0];
+         rdi.removeAllFeatures();
+    }
+  };
+}
+function init(){
+streets  = new OpenLayers.Layer.TMS( "Map","",
+	{  url: '', serviceVersion: '.', layername: '.', alpha: false,
+		type: 'jpg', getURL: overlay_getTileURL 
+	});
+path = new OpenLayers.Layer.Vector("Paths", {
+      style: {
+      strokeColor: '${pcolor}',
+      strokeWidth: 3
+      }});
+shape = new OpenLayers.Layer.Vector("Shape", {
+      style: {
+            strokeColor: "${pcolor}",
+            strokeOpacity: 1,
+            strokewidth: 3,
+            fillColor: "${pcolor}",
+            fillOpacity: 0.6
+      }
+});
+     var estyle = new OpenLayers.Style({
+                    pointRadius: "${radius}",
+                    fillColor: "#D93016",
+                    fillOpacity: 0.7,
+                    strokeColor: "#D93016",
+                    strokeWidth: 2,
+                    strokeOpacity: 1
+                }, {
+                    context: {
+                        radius: function(feature) {
+                            return Math.min(feature.attributes.count, 7) + 4;
+                        }
+                    }
+                });
+tevents = new OpenLayers.Layer.Vector("Events",{
+                    strategies: [new OpenLayers.Strategy.Cluster()],
+                    styleMap: new OpenLayers.StyleMap({
+                        "default": estyle,
+                        "select": {
+                            fillOpacity: 0.9
+                        }
+                    })
+        });
+          var placeslayer = new OpenLayers.Layer.Vector("Places",{
+                    style: {
+                    pointRadius: 7,
+                    fillColor: "#333333",
+                    fillOpacity: 0.9,
+                    strokeColor: "#ffffff",
+                    strokeWidth: 2,
+                    strokeOpacity: 1
+                    }
+                });
+     var evreq = "meincludes/m.php?map=middleearth&pars[]=pars&pars[]=viewall";
+     var evcopy = new OpenLayers.Layer.Vector("Hidden Events",{
+                    strategies: [new OpenLayers.Strategy.Fixed()],
+                    eventListeners: {
+                                'loadend': function(evt) {
+            $('#'+map.getLayersByName("Hidden Events")[0].id+'').css('display', 'none');
+                                }
+                    },
+                    protocol: new OpenLayers.Protocol.HTTP({
+                        url: evreq,
+                        format: new OpenLayers.Format.Text()
+                    })
+                });
+      evcopy.setOpacity(0);
+map = new OpenLayers.Map({
+    div: "map",
+    theme: null,
+    layers: [streets, path, evcopy, placeslayer, shape, tevents],
+    maxExtent: new OpenLayers.Bounds(  0.0, -3000.0, 3000.0, 0.0 ),
+    restrictedExtent: new OpenLayers.Bounds(  0.0, -3000.0, 3000.0, -385.0 ),
+    maxResolution: 16.00000,
+    numZoomLevels: 5,
+    controls: [
+        new OpenLayers.Control.Attribution(),
+        new OpenLayers.Control.Navigation({
+            dragPanOptions: {
+                enableKinetic: true
+            }
+        }),
+        new OpenLayers.Control.Zoom(),
+        new OpenLayers.Control.Permalink({anchor: true})
+    ]
+});
+map.setCenter(new OpenLayers.LonLat(1500, -1315.5), 3);
+shownevents.set("viewall");
+var dp = new drawPath();
+dp.show("1");
+var ve = new viewEvents();
+ve.show(shownevents.get());
+map.events.register('zoomend', this, function (event) {
+        var x = map.getZoom();
+        
+        if( x <= 2)
+        {
+         map.zoomTo(2);
+         map.setCenter(new OpenLayers.LonLat(1500,-1500),2);
+        }
+    });
+fpControl = new OpenLayers.Control.FeaturePopups({
+            popupSingleOptions: {popupClass: createPopup},
+            popupListOptions: {popupClass: createPopup},
+            popupListItemOptions: {popupClass: createPopup},
+            layers: [
+                [
+                tevents, {templates: {
+                single: '<div class="singleitem"><div class="sititle">${.pname}</div><div class="sidesc">${.pdesc}</div></div>',
+                item: '<div class="singleitem"><div class="sititle">${.pname}</div><div class="sidesc">${.pdesc}</div></div>',
+                list: '<div class="listpopup">${html}</div>'
+            }}]
+            ]
+});
+map.addControl(fpControl);
+        var places = map.getLayersByName("Places");
+        if (places.length) {
+        selectControl = new OpenLayers.Control.SelectFeature([tevents, places[0]]);
+        map.addControl(selectControl);
+        selectControl.activate();
+        places[0].events.on({
+                    'featureselected': onFeatureSelect,
+                    'featureunselected': onFeatureUnselect
+                });
+        } else {
+        selectControl = new OpenLayers.Control.SelectFeature(tevents);
+        map.addControl(selectControl);
+        selectControl.activate();
+        }
+$('#loadingmap').fadeOut("slow");
+$('#header').css('z-index', '1999');
+}
+$(window).resize(function() {
+mapresize();
+});
+$(document).ready(function(){
+$('#h_item_maps').addClass('active');
+bcon();
+$.ajaxSetup({
+  cache: true
+});
+if($(window).height() > 400) {
+ $('#map, #panel, #loadingmap').height(''+($(window).height())+'px');
+} else {
+ $('#map, #panel, #loadingmap').height('400px');
+}
+ $('#memaptitle').css('padding-top', ''+($(window).height()/2-100)+'px');
+
+mapresize();
+if($(window).width() < 840) {
+   $('#minimize').trigger( "click" );
+}
+
+$("#closeip").click(function() {
+  $('#infopanel').fadeOut("fast", function() { $('#firsttime, #donate').hide(); });
+});
+  $('#thorinandcompany').prop('checked', true);
+  $('#viewall').prop('checked', true);
+  $("div#viewpaths input").click(function() {
+   var thepath = $(this).val();
+   if ($(this).is(':checked')) {
+     var dp = new drawPath();
+     dp.show(thepath);
+   } else {
+     var dp = new drawPath();
+     dp.remove(thepath);
+   } 
+  });
+  $("div#viewplaces input").click(function() {
+    var clicked = $(this).val();
+    if ($(this).is(':checked')) {
+     shownplaces.set(clicked);
+     var ve = new viewPlaces();
+     ve.show(shownplaces.get());
+   } else {
+     shownplaces.rem(clicked);
+     var ve = new viewPlaces();
+     ve.show(shownplaces.get());
+   } 
+  });
+  $("div#viewevents input").click(function() {
+    var clicked = $(this).val();
+    if ($(this).is(':checked')) {
+     shownevents.set(clicked);
+     var ve = new viewEvents();
+     ve.show(shownevents.get());
+   } else {
+     shownevents.rem(clicked);
+     var ve = new viewEvents();
+     ve.show(shownevents.get());
+   } 
+  });
+  var viewall = function () {
+    if ($("#viewall").is(":checked")) {
+        $('.filter').prop('disabled', 'disabled');
+    }
+    else {
+        $('.filter').prop('disabled', false);
+    }
+  };
+  var pviewall = function () {
+    if ($("#pviewall").is(":checked")) {
+        $('.placefilter').prop('disabled', 'disabled');
+    }
+    else {
+        $('.placefilter').prop('disabled', false);
+    }
+  };
+  $(viewall);
+  $(pviewall);
+  $("#viewall").change(viewall);
+  $("#pviewall").change(pviewall);
+  $('#floatmenu').load('http://lotrproject.com/parts/menu.php', function() {});
+   $('#float').mouseenter(function() {
+      oleft = $(this).position().left;
+      otop = $(this).position().top;
+      $('#floatmenu').css('top', (parseInt(otop, 10)) + 'px');
+      $('#floatmenu').css('left', (parseInt(oleft, 10)) + 'px');
+      $('#floatmenu').show();
+        $('#floatmenu').hover(function() {
+          $('#floatmenu').show();
+        },function() {
+          $('#floatmenu').hide();
+        });
+  });
+  $(".tooltitle").toggle(function() {
+    $('.open').animate({right: '-200px'}, 200).css("z-index", "751");
+    $(this).parent().addClass('open');
+    $(this).parent().animate({right: '-2px'}, 200);
+    $(this).parent().css("z-index", "2000");
+  }, function() {
+    $(this).parent().animate({right: '-200px'}, 200);
+    $(this).parent().css("z-index", "751");
+  });
+  $('#search').autocomplete({ 
+   source: "meincludes/l.php?map=middleearth",
+   appendTo: "#viewsearch",
+   autoFocus: true,
+   minLength: 3,
+   open: function(){
+        $(this).autocomplete('widget').css('z-index', 2000);
+        return false;
+    },
+   select: function(event,ui) {
+      var lonlat = new OpenLayers.LonLat( ui.item.x, ui.item.y );
+      map.setCenter(lonlat, 4);
+      locationinfo(lonlat, ui.item.value, ui.item.info, ui.item.tg, ui.item.lid, ui.item.p);
+   }
+  });
+$.getScript("meincludes/ol.js", fp);
+function fp() {
+$.getScript("meincludes/fp.js", init);
+}
+$.getScript("meincludes/cookie.js", checkcookie);
+});
+function checkcookie() {
+if($.cookie('firsttime')) {
+toggleabout();
+} else {
+$.cookie('firsttime', 'no', { expires: 7 });
+}
+}
+function toggledonate() {
+  if($('#donate').is(":visible")) {
+   $('#infopanel, #donate').fadeOut();
+  } else {
+   $('#infopanel, #donate').fadeIn();
+   $('#firsttime').hide();
+  }
+}
+function toggleabout() {
+  $.cookie('firsttime', 'no', { expires: 7 });
+  if($('#firsttime').is(":visible")) {
+   $('#infopanel, #firsttime').fadeOut();
+  } else {
+   $('#infopanel, #firsttime').fadeIn();
+   $('#donate').hide();
+  }
+}
+function mapresize() {
+if($(window).width() < 840) {
+   $("#topmenuinner").css('width', '107px');
+   $('#showhidemenu').show();
+   $('#showsearch, #showpanel, #viewplaces-container, #viewpaths-container, #viewevents-container, #showabout, #showdonate, #tobeleriand, #totheapp').hide();
+  $("#showhidemenu").click(function() { 
+   $('#showsearch, #showpanel, #viewplaces-container, #viewpaths-container, #viewevents-container, #showabout, #showdonate, #tobeleriand, #totheapp').toggle();
+  });
+} else {
+   var tmw = $("#topmenuinner").width();
+   $("#topmenuinner").css('width', '' + tmw + 'px');
+   $('#showhidemenu').hide();
+   $('#showsearch, #showpanel, #viewplaces-container, #viewpaths-container, #viewevents-container, #showabout, #showdonate, #tobeleriand, #totheapp').show();
+}
+}
+function togglepanel() {
+if($('#panel').is(":visible")) {
+jsPlumb.detachEveryConnection();
+jsPlumb.deleteEveryEndpoint();
+$('#map-container').stop(true, true).animate({width:'100%'}, 500);
+$('#panel').stop(true, true).animate({width: "toggle"});
+setTimeout(function() { map.updateSize(); $('#'+map.getLayersByName("Hidden Events")[0].id+'').css('display', 'none'); }, 500);
+  if($(window).width() < 800) {
+   $('#showsearch, #showpanel, #viewplaces-container, #viewpaths-container, #viewevents-container, #showabout, #showdonate, #tobeleriand, #totheapp').show();
+  }
+} else {
+var mapwidth = $('#map').width() - $('#panel').width();
+$('#map-container').stop(true, true).animate({width:''+mapwidth+'px'}, 500);
+$('#panel').stop(true, true).animate({width: "toggle"}, 500, function() { loadpanelpage("meincludes/timeline.php?v=1") });
+setTimeout(function() { map.updateSize(); $('#'+map.getLayersByName("Hidden Events")[0].id+'').css('display', 'none'); }, 500);
+  if($(window).width() < 800) {
+   $('#showsearch, #showpanel, #viewplaces-container, #viewpaths-container, #viewevents-container, #showabout, #showdonate, #tobeleriand, #totheapp').hide();
+}
+}
+}
+function loadpanelpage(page) {
+ $('#panelcontent').remove();
+ $('#panel').append("<div id='panelcontent'></div>");
+ $.ajax({
+    url: "meincludes/timeline.php?v=1",
+    cache: true,
+    dataType: "html",
+    success: function(data) {
+        $('#panelcontent').html(data);
+    }
+ });
+}
+		    </script>
+</head>
+<body>
+  <script type="text/javascript" src="http://lotrproject.com/parts/ns.js"></script>
+  <div id="header_container" style="position: absolute;">
+   <div id="header_logo">
+    <div id="header_logo_border"></div>
+    <a href="http://lotrproject.com"><img id="logo" src="http://lotrproject.com/sixdegrees/images/darklogo.png"></a>
+   </div>
+   <div id="header_browse">
+    <div class="header_browse_bar"></div>
+    <div class="header_browse_bar"></div>
+    <div class="header_browse_bar"></div>
+   </div>
+   <div class="nano">
+   <div class="nano-content">
+   <div id="header_menu">
+    <ul>
+     <li id="h_item_maps" class="header_menu_item"><a href="http://lotrproject.com/map">Maps</a></li>
+     <li id="h_item_timelines" class="header_menu_item"><a href="http://lotrproject.com/timeline">Timelines</a></li>
+     <li id="h_item_statistics" class="header_menu_item"><a href="http://lotrproject.com/statistics/">Statistics</a></li>
+     <li id="h_item_blog" class="header_menu_item"><a href="http://lotrproject.com/blog">Blog</a></li>
+     <li id="h_item_about" class="header_menu_item"><a href="http://lotrproject.com/about">About</a></li>
+     <li id="h_item_store" class="header_menu_item"><a href="http://lotrproject.com/posters">Store</a></li>
+     <div style="clear:both;"></div>
+     <li class="header_menu_item" id="more"><a>More</a></li>
+     <li id="h_item_contact" class="header_menu_item"><a href="http://lotrproject.com/blog/contact/">Contact</a></li>
+     <li class="header_menu_item"><a id="share">Share</a></li>
+     <li class="header_menu_img_item facebook"><a href="http://facebook.com/lotrproject"><img src="http://lotrproject.com/images/facebook.png" alt="Facebook"></a></li>
+     <li class="header_menu_img_item twitter"><a href="http://twitter.com/lotrproject"><img src="http://lotrproject.com/images/twitter.png" alt="Twitter"></a></li>
+     <li class="header_menu_img_item tumblr"><a href="http://lotrproject.tumblr.com/"><img src="http://lotrproject.com/images/tumblr.png" alt="Tumblr"></a></li>
+    </ul>
+    <div style="clear:both;"></div>
+   </div>
+   <div id="header_menu_share_box">
+    <div id="header_share_box_arrow">
+     <img src="http://lotrproject.com/parts/popuparrow.png" />
+    </div>
+    <div id="header_share_box_border_cont"><div id="header_share_box_border"></div></div>
+    <div id="fb-root"></div>
+    <ul>
+     <li style="margin-right:10px;"><a href="https://twitter.com/share" class="twitter-share-button" data-url="http://lotrproject.com/map/" data-count="horizontal" data-via="lotrproject">Tweet</a></li>
+     <li style="margin-right:-17px;">
+<g:plusone href="http://lotrproject.com/map/" size="medium"></g:plusone></li>
+     <li style="margin-right:0px;"><fb:like href="http://lotrproject.com/map/" send="false" layout="button_count" width="50" show_faces="false" action="like" font="segoe ui"  style="vertical-align:top;zoom:1;*display:inline"></fb:like></li>
+    </ul>
+   </div>
+   <div id="header_menu_more_projects">
+    <div id="header_more_projects_arrow">
+     <img src="http://lotrproject.com/parts/popuparrow.png" />
+    </div>
+    <div id="header_more_projects_border_cont"><div id="header_more_projects_border"></div></div>
+    <div class="header_more_projects_box">
+     <div class="header_more_projects_title">Interactive</div>
+     <ul>
+      <li><a href="http://lotrproject.com/timedistance">Time vs. Distance</a></li>
+      <li><a href="http://lotrproject.com/sixdegrees">Six Degrees of Sauron</a></li>
+     </ul>
+     <div class="header_more_projects_spacer"></div>
+     <div class="header_more_projects_title">Characters</div>
+     <ul>
+      <li><a href="http://lotrproject.com/char/Index">Encyclopedia</a></li>
+      <li><a href="http://lotrproject.com/char/List">Character list</a></li>
+     </ul>
+    </div>
+    <div class="header_more_projects_box">
+     <div class="header_more_projects_title">Book Analysis</div>
+     <ul>
+      <li><a href="http://lotrproject.com/statistics/books/keywordsearch">Keyword frequency</a></li>
+      <li><a href="http://lotrproject.com/statistics/books/charactermentions">Character mentions</a></li>
+      <li><a href="http://lotrproject.com/statistics/books/sentimentanalysis">Sentiment analysis</a></li>
+      <li><a href="http://lotrproject.com/statistics/books/wordscount">Word count</a></li>
+      <li><a href="http://lotrproject.com/statistics/books/chapters">Chapter lengths</a></li>
+      <li><a class="header_see_all" href="http://lotrproject.com/statistics/books/">See all</a></li>
+     </ul>
+    </div>
+    <div class="header_more_projects_box">
+     <ul>
+      <li><a href="http://lotrproject.com/quotes/">Quotes</a></li>
+      <li><a href="http://lotrproject.com/blog/category/infographics/">Infographics</a></li>
+      <li><a href="http://lotrproject.com/blog/category/humour/">Humour</a></li>
+      <br />
+      <li><a href="http://lotrproject.com/app">Android app</a></li>
+      <li><a href="http://lotrproject.com/404.php">Error 404 page</a></li>
+      <br />
+      <li><a href="http://lotrproject.com/listall"><strong>All projects</strong></a></li>
+     </ul>
+    </div>
+    <div style="clear:both;"></div>
+   </div>
+   </div>
+   </div>
+  </div>
+  <script>
+   $(document).ready(function(){
+    $('.nano').show();
+    resizeBorders();
+    $('.nano').hide();
+    if($(window).width() < 800) {
+    } else {
+      $('.nano').show();
+    }
+    $(window).resize(function() {
+     $('#header_menu_more_projects, #header_menu_share_box').hide();
+     if($(window).width() > 799) {
+       $('.nano').show();
+       $('.nano').css('height', '100%');
+     } else {
+       $('.nano').hide();
+     }
+     $('.nano').nanoScroller({ stop: true });
+     $('.nano').nanoScroller({ destroy: true });
+     console.log(0);
+    });
+    $('#more').click(function(){
+     otop = $('#more').position().top+38;
+     $('#header_menu_share_box').hide();
+     $('#header_menu_more_projects').css('top', ''+otop+'px').fadeToggle(300);
+     resizeBorders();
+    });
+    $('#share').click(function(){
+     otop = $('#share').position().top+38;
+     $('#header_menu_more_projects').hide();
+     $('#header_menu_share_box').css('top', ''+otop+'px').fadeToggle(300);
+     resizeBorders();
+    });
+    $('#header_browse').click(function(){
+     if($('.nano').is(':visible')) {
+       $('#header_browse').removeClass('active');
+     } else { $('#header_browse').addClass('active'); }
+     if($(window).width() < 800) {
+      $('.nano').fadeToggle(300);
+      $('.nano').nanoScroller();
+      if($(window).height() > 440) {
+        $('.nano').height(460-$('#header_logo').height()-10);
+      } else {
+        $('.nano').height($(window).height()-$('#header_logo').height()-10);
+      }
+     }
+    });
+   });
+   function resizeBorders() {
+    $('#header_more_projects_border_cont').height($('#header_menu_more_projects').height() - 2);
+    $('#header_share_box_border_cont').height($('#header_menu_share_box').height() - 2);
+    if($(window).width() < 799) {
+     $('.nano').nanoScroller();
+    } else {
+     $('.nano').nanoScroller({destroy: true});
+    }
+   }
+   $(window).bind("load", function() {
+
+    (function(d, s, id) { var js, fjs = d.getElementsByTagName(s)[0]; if (d.getElementById(id)) return; js = d.createElement(s); js.id = id; js.src = "//connect.facebook.net/en_US/all.js#xfbml=1&appId=121125547969123"; fjs.parentNode.insertBefore(js, fjs); }(document, 'script', 'facebook-jssdk'));
+
+    !function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0],p=/^http:/.test(d.location)?'http':'https';if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src=p+'://platform.twitter.com/widgets.js';fjs.parentNode.insertBefore(js,fjs);}}(document, 'script', 'twitter-wjs');
+
+    (function() { var po = document.createElement('script'); po.type = 'text/javascript'; po.async = true; po.src = 'https://apis.google.com/js/plusone.js'; var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(po, s); })();
+
+   });
+  </script> <div id="wrapper">
+  <div id="loadingmap">
+   <div id="memaptitle"><span class="l1">LotrProject's Interactive</span><br /><span class="l3">Map of Middle-earth</span><br /><br /><img src="meincludes/images/ajax-loader.gif" /></div>
+  </div>
+  <div id="infopanel">
+   <div id="closeip"><img src="meincludes/images/close.png" /></div>
+   <div id="firsttime">
+     <div class="ptitle">Welcome to the map!</div>
+     <div class="pcontent">This is a high resolution interactive map of J.R.R. Tolkien's Middle-earth. In the menu to the right you can show events, places and character movements.<br /><br />
+If you enjoy this site please consider a small <span style="font-weight:bold;border-bottom:1px solid #999999;cursor:pointer;" onClick=toggledonate()>donation</span> and help keep it ad free. Hosting costs a lot of money and developing new projects takes hundreds of hours. If you want to help out it would be awesome!
+<br /><br />
+If you have questions or corrections, please feel free to <a href="http://lotrproject.com/blog/contact/">contact me</a>.<br /><br />
+<div style="font-size:12px;text-transform:uppercase;text-align:center;">� LotrProject.com 2014</div>
+     </div>
+   </div>
+   <div id="donate">
+				<div id="pleasedonate">
+<div class="donatetitle">Show your love and donate</div>
+Updating and developing LotrProject takes many hours of work each month and hosting the site costs a lot of money. Please help keep this project up and running without advertisements and donate a small amount.<br /><br />
+<form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_top">
+<input type="hidden" name="cmd" value="_s-xclick">
+<input type="hidden" name="hosted_button_id" value="5RBRAMKX79H6C">
+<input type="image" src="https://www.paypalobjects.com/en_US/SE/i/btn/btn_donateCC_LG.gif" border="0" name="submit" alt="PayPal - The safer, easier way to pay online!">
+<img alt="" border="0" src="https://www.paypalobjects.com/en_US/i/scr/pixel.gif" width="1" height="1">
+</form>
+</div>
+   </div>
+  </div>
+  <div id="panel"></div>
+  <div id="map-container">
+  <div id="showhidemenu">Menu</div>
+  <div id="tobeleriand"><a href="http://lotrproject.com/map/beleriand">Map of Beleriand</a></div>
+  <div id="showsearch">
+    <div id="viewsearch">
+      <input id="search"  placeholder="Find location" />
+    </div>
+    <div class="tooltitle">Search</div>
+  </div>
+  <div id="showpanel" onClick=togglepanel()>Timelines</div>
+  <div id="viewplaces-container">
+    <div id="viewplaces">
+      <input id="pviewall" name="all" type="checkbox" value="viewall"><label for="pviewall"> View All</label><br />
+      <div class="toolssubtitle" style="margin-top:8px;">by Type</div>
+      <input id="City" class="placefilter" name="bytype" type="checkbox" value="settlements"><label for="City"> Settlements</label><br />
+      <input id="MountainRanges" class="placefilter" name="bytype" type="checkbox" value="mountainshills"><label for="MountainRanges"> Mountains and Hills</label><br />
+      <input id="Rivers" class="placefilter" name="bytype" type="checkbox" value="rivers"><label for="Rivers"> Bodies of water</label><br />
+      <input id="Forests" class="placefilter" name="bytype" type="checkbox" value="forests"><label for="Forests"> Forests</label><br />
+      <input id="Roads" class="placefilter" name="bytype" type="checkbox" value="roads"><label for="Roads"> Roads</label><br />
+      <input id="Regions" class="placefilter" name="bytype" type="checkbox" value="regions"><label for="Regions"> Regions</label><br />
+    </div>
+    <div class="tooltitle">Places</div>
+  </div>
+  <div id="viewpaths-container">
+    <div id="viewpaths">
+      <div class="toolssubtitle">The Hobbit</div>
+      <input id="thorinandcompany" type="checkbox" value="1"><label for="thorinandcompany"> Thorin and Company</label>
+      <div class="toolssubtitle" style="margin-top:8px;">The Lord of the Rings</div>
+      <input id="aragorn" type="checkbox" value="3"><label for="aragorn"> Aragorn</label><br />
+      <input id="gandalfthegrey" type="checkbox" value="8"><label for="gandalfthegrey"> Gandalf the Grey</label><br />
+      <input id="gandalfthewhite" type="checkbox" value="9"><label for="gandalfthewhite"> Gandalf the White</label><br />
+      <input id="frodoandsam" type="checkbox" value="2"><label for="frodoandsam"> Frodo and Sam</label><br />
+      <input id="merry" type="checkbox" value="7"><label for="merry"> Merry</label><br />
+      <input id="pippin" type="checkbox" value="6"><label for="pippin"> Pippin</label><br />
+      <input id="boromir" type="checkbox" value="4"><label for="boromir"> Boromir</label><br />
+      <input id="legolasandgimli" type="checkbox" value="5"><label for="legolasandgimli"> Legolas and Gimli</label>
+    </div>
+    <div class="tooltitle">Paths</div>
+  </div>
+  <div id="viewevents-container">
+    <div id="viewevents">
+      <input id="viewall" name="all" type="checkbox" value="viewall"><label for="viewall"> View All</label><br />
+      <div class="toolssubtitle" style="margin-top:8px;">by Books</div>
+      <input id="thehobbit" class="filter" name="bybook" type="checkbox" value="thehobbit"><label for="thehobbit"> The Hobbit</label><br />
+      <input id="lotr" class="filter" name="bybook" type="checkbox" value="lotr"><label for="lotr"> The Lord of the Rings</label>
+      <div class="toolssubtitle" style="margin-top:8px;">by Year</div>
+      <input id="ta3018" class="filter" name="byyear" type="checkbox" value="3018"><label for="ta3018"> T.A. 3018</label><br />
+      <input id="ta3019" class="filter" name="byyear" type="checkbox" value="3019"><label for="ta3019"> T.A. 3019</label><br />
+    </div>
+    <div class="tooltitle">Events</div>
+  </div>
+  <div id="showabout" onClick=toggleabout()>INFO</div>
+  <div id="showdonate" onClick=toggledonate()><img src="meincludes/images/heart.png" /> DONATE</div>
+  <div id="totheapp"><a href="https://play.google.com/store/apps/details?id=lotr.project">GET THE APP</a></div>
+   <div id="map" class="smallmap"></div>
+  </div>
+ </div>
+</body>
+</html>

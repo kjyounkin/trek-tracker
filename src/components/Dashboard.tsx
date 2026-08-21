@@ -6,7 +6,10 @@ import { Footprints, Route } from 'lucide-react';
 export function Dashboard() {
   const { entries, addEntry, deleteEntry, totalSteps, totalMiles, stepConversion } = useJourney();
   const [stepsInput, setStepsInput] = useState('');
-  const [dateInput, setDateInput] = useState(new Date().toISOString().split('T')[0]);
+  const [dateInput, setDateInput] = useState(() => {
+    const now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,7 +102,7 @@ export function Dashboard() {
               {[...entries].reverse().map(entry => (
                 <div key={entry.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
                   <div>
-                    <p className="font-medium text-slate-800">{new Date(entry.date).toLocaleDateString()}</p>
+                    <p className="font-medium text-slate-800">{new Date(entry.date + 'T00:00:00').toLocaleDateString()}</p>
                     <p className="text-sm text-slate-500">{(entry.steps / stepConversion).toFixed(2)} miles</p>
                   </div>
                   <div className="flex items-center gap-4">
